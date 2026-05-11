@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Epsilon Greedy 多臂老虎机学习演示</title>
+    <style>
+        /* ==================== 全局样式 ==================== */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #f0f2f5;
+            color: #1a1a2e;
+            min-height: 100vh;
+        }
+
+        .monospace { font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace; }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .card {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        /* ==================== 顶部标题 ==================== */
+        .title-section {
+            text-align: center;
+            padding: 24px 0 8px;
+        }
+
+        .title-section h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1a1a2e;
+        }
+
+        .title-section .subtitle {
+            font-size: 15px;
+            color: #6b7280;
+            margin-top: 6px;
+        }
+
+        .subtitle .epsilon-value {
+            color: #4A6CF7;
+            font-weight: 600;
+        }
+
+        /* ==================== 收敛提示横幅 ==================== */
+        .convergence-banner {
+            background: linear-gradient(135deg, #10B981, #059669);
+            color: #fff;
+            text-align: center;
+            padding: 14px 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            font-size: 16px;
+            font-weight: 600;
+            display: none;
+            animation: slideDown 0.5s ease-out;
+        }
+
+        .convergence-banner.show { display: block; }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ==================== 配置面板 ==================== */
+        .config-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .config-header h2 { font-size: 18px; font-weight: 600; }
+
+        .config-toggle {
+            font-size: 20px;
+            transition: transform 0.3s;
+            color: #9ca3af;
+        }
+
+        .config-toggle.collapsed { transform: rotate(-90deg); }
+
+        .config-body {
+            overflow: hidden;
+            transition: max-height 0.4s ease, opacity 0.3s ease;
+            max-height: 800px;
+            opacity: 1;
+        }
+
+        .config-body.collapsed {
+            max-height: 0;
+            opacity: 0;
+        }
+
+        .config-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-top: 16px;
+            flex-wrap: wrap;
+        }
+
+        .config-row label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #374151;
+            min-width: 80px;
+        }
+
+        .config-row input[type="number"] {
+            width: 70px;
+            padding: 6px 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        .config-row input[type="range"] {
+            flex: 1;
+            min-width: 120px;
+            accent-color: #4A6CF7;
+        }
+
+        .slider-value {
+            font-family: 'SF Mono', 'Consolas', monospace;
+            font-size: 14px;
+            font-weight: 600;
+            color: #4A6CF7;
+            min-width: 40px;
+        }
+
+        /* 概率滑块区域 */
+        .prob-sliders {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .prob-slider-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #f9fafb;
+            padding: 8px 14px;
+            border-radius: 8px;
+            min-width: 200px;
+            flex: 1;
+        }
+
+        .prob-slider-item .arm-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #6b7280;
+            white-space: nowrap;
+        }
+
+        .prob-slider-item input[type="range"] {
+            flex: 1;
+            accent-color: #10B981;
+        }
+
+        .prob-slider-item .slider-value {
+            color: #10B981;
+        }
+
+        /* 速度按钮组 */
+        .speed-group {
+            display: flex;
+            gap: 6px;
+        }
+
+        .speed-btn {
+            padding: 6px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            background: #fff;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .speed-btn:hover { border-color: #4A6CF7; color: #4A6CF7; }
+
+        .speed-btn.active {
+            background: #4A6CF7;
+            color: #fff;
+            border-color: #4A6CF7;
+        }
+
+        /* 控制按钮组 */
+        .control-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 16px;
+            flex-wrap: wrap;
+        }
+
+        .ctrl-btn {
+            padding: 10px 22px;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .ctrl-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .ctrl-btn:active { transform: translateY(0); }
+
+        .ctrl-btn.start { background: #10B981; color: #fff; }
+        .ctrl-btn.pause { background: #F59E0B; color: #fff; }
+        .ctrl-btn.step { background: #4A6CF7; color: #fff; }
+        .ctrl-btn.reset { background: #EF4444; color: #fff; }
+
+        .ctrl-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        /* ==================== 状态面板 ==================== */
+        .stats-row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .stat-card {
+            flex: 1;
+            min-width: 120px;
+            text-align: center;
+            padding: 16px 10px;
+            background: #f9fafb;
+            border-radius: 10px;
+            transition: transform 0.2s;
+        }
+
+        .stat-card .stat-icon { font-size: 22px; }
+
+        .stat-card .stat-value {
+            font-family: 'SF Mono', 'Consolas', monospace;
+            font-size: 26px;
+            font-weight: 700;
+            color: #1a1a2e;
+            margin: 4px 0;
+        }
+
+        .stat-card .stat-label {
+            font-size: 12px;
+            color: #9ca3af;
+            font-weight: 500;
+        }
+
+        .stat-card.best-arm {
+            background: linear-gradient(135deg, #fef3c7, #fde68a);
+            border: 2px solid #f59e0b;
+        }
+
+        .stat-card.best-arm .stat-value { color: #92400e; }
+
+        /* 数字变化脉冲动画 */
+        @keyframes numberPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.12); }
+            100% { transform: scale(1); }
+        }
+
+        .pulse { animation: numberPulse 0.3s ease; }
+
+        /* ==================== 臂卡片区域 ==================== */
+        .arms-container {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .arm-card {
+            flex: 1;
+            min-width: 180px;
+            max-width: 280px;
+            background: #fff;
+            border-radius: 14px;
+            padding: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            border: 3px solid transparent;
+            transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .arm-card.dimmed { opacity: 0.6; }
+
+        .arm-card.selected-explore {
+            transform: scale(1.05);
+            border-color: #F59E0B;
+            box-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
+        }
+
+        .arm-card.selected-exploit {
+            transform: scale(1.05);
+            border-color: #4A6CF7;
+            box-shadow: 0 0 20px rgba(74, 108, 247, 0.4);
+        }
+
+        .arm-card.is-best { border-color: #f59e0b; }
+
+        /* 臂编号 */
+        .arm-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+        }
+
+        .arm-number {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1a1a2e;
+        }
+
+        .arm-crown {
+            font-size: 20px;
+            display: none;
+        }
+
+        .arm-card.is-best .arm-crown { display: inline; }
+
+        /* 概率对比条 */
+        .prob-bar-container {
+            margin: 12px 0;
+        }
+
+        .prob-label {
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 6px;
+            font-family: 'SF Mono', 'Consolas', monospace;
+        }
+
+        .prob-bar-track {
+            position: relative;
+            height: 28px;
+            background: #f3f4f6;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .prob-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4A6CF7, #6366f1);
+            border-radius: 8px;
+            transition: width 0.8s ease;
+            min-width: 0;
+        }
+
+        .prob-bar-marker {
+            position: absolute;
+            top: 0;
+            height: 100%;
+            width: 3px;
+            background: repeating-linear-gradient(
+                to bottom,
+                #6b7280 0px,
+                #6b7280 4px,
+                transparent 4px,
+                transparent 8px
+            );
+            transition: left 0.3s ease;
+            z-index: 2;
+        }
+
+        .prob-bar-marker-label {
+            position: absolute;
+            top: -18px;
+            font-size: 10px;
+            color: #6b7280;
+            transform: translateX(-50%);
+            font-family: 'SF Mono', 'Consolas', monospace;
+        }
+
+        /* 臂统计标签 */
+        .arm-stats {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .arm-stat-tag {
+            font-size: 12px;
+            padding: 3px 10px;
+            border-radius: 6px;
+            background: #f3f4f6;
+            color: #6b7280;
+            font-family: 'SF Mono', 'Consolas', monospace;
+        }
+
+        /* 奖励飘字动画 */
+        .reward-float {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 18px;
+            font-weight: 700;
+            color: #10B981;
+            pointer-events: none;
+            animation: floatUp 1s ease-out forwards;
+            z-index: 10;
+        }
+
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateX(-50%) translateY(0); }
+            100% { opacity: 0; transform: translateX(-50%) translateY(-40px); }
+        }
+
+        /* 卡片闪烁绿色 */
+        @keyframes flashGreen {
+            0% { background-color: #fff; }
+            30% { background-color: #d1fae5; }
+            100% { background-color: #fff; }
+        }
+
+        .flash-reward { animation: flashGreen 0.6s ease; }
+
+        /* ==================== 历史轨迹 ==================== */
+        .history-section h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .timeline-container {
+            overflow-x: auto;
+            padding: 10px 0;
+            white-space: nowrap;
+        }
+
+        .timeline-container::-webkit-scrollbar { height: 6px; }
+        .timeline-container::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+
+        .timeline {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            min-height: 40px;
+        }
+
+        .timeline-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.2s;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .timeline-dot:hover { transform: scale(1.5); }
+
+        .timeline-dot.explore { background: #F59E0B; }
+        .timeline-dot.exploit { background: #4A6CF7; }
+
+        .timeline-dot.rewarded {
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.5);
+        }
+
+        .timeline-dot.no-reward {
+            box-shadow: 0 0 0 3px rgba(156, 163, 175, 0.3);
+        }
+
+        /* 圆点滑入动画 */
+        @keyframes dotSlideIn {
+            0% { opacity: 0; transform: translateX(10px) scale(0.5); }
+            60% { transform: translateX(-2px) scale(1.15); }
+            100% { opacity: 1; transform: translateX(0) scale(1); }
+        }
+
+        .timeline-dot.new { animation: dotSlideIn 0.4s ease-out; }
+
+        /* Tooltip */
+        .timeline-dot .tooltip {
+            display: none;
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1a1a2e;
+            color: #fff;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            white-space: nowrap;
+            z-index: 20;
+            pointer-events: none;
+            margin-bottom: 6px;
+        }
+
+        .timeline-dot:hover .tooltip { display: block; }
+
+        .timeline-legend {
+            display: flex;
+            gap: 20px;
+            margin-top: 10px;
+            font-size: 12px;
+            color: #6b7280;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .legend-dot.orange { background: #F59E0B; }
+        .legend-dot.blue { background: #4A6CF7; }
+        .legend-dot.green-ring { background: #4A6CF7; box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.5); }
+        .legend-dot.gray-ring { background: #4A6CF7; box-shadow: 0 0 0 2px rgba(156, 163, 175, 0.3); }
+
+        /* ==================== 决策详情 ==================== */
+        .decision-detail {
+            font-family: 'SF Mono', 'Consolas', monospace;
+            font-size: 13px;
+            line-height: 1.8;
+            color: #374151;
+            padding: 12px 16px;
+            background: #f9fafb;
+            border-radius: 8px;
+            min-height: 40px;
+        }
+
+        .decision-detail .highlight-explore { color: #F59E0B; font-weight: 600; }
+        .decision-detail .highlight-exploit { color: #4A6CF7; font-weight: 600; }
+        .decision-detail .highlight-reward { color: #10B981; font-weight: 600; }
+        .decision-detail .highlight-no-reward { color: #9ca3af; font-weight: 600; }
+
+        /* ==================== 响应式 ==================== */
+        @media (max-width: 768px) {
+            .container { padding: 12px; }
+            .title-section h1 { font-size: 22px; }
+            .stat-card { min-width: 100px; padding: 12px 6px; }
+            .stat-card .stat-value { font-size: 20px; }
+            .arm-card { min-width: 150px; }
+            .ctrl-btn { padding: 8px 14px; font-size: 13px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 标题区域 -->
+        <div class="title-section">
+            <h1>🎰 Epsilon Greedy 多臂老虎机学习演示</h1>
+            <div class="subtitle">当前 ε = <span class="epsilon-value" id="epsilonDisplay">0.10</span> &nbsp;|&nbsp; 探索与利用的平衡之道</div>
+        </div>
+
+        <!-- 收敛提示 -->
+        <div class="convergence-banner" id="convergenceBanner">
+            🎉 算法已收敛！所有臂的估计概率已接近真实概率
+        </div>
+
+        <!-- 配置面板 -->
+        <div class="card">
+            <div class="config-header" id="configHeader">
+                <h2>⚙️ 参数配置</h2>
+                <span class="config-toggle" id="configToggle">▼</span>
+            </div>
+            <div class="config-body" id="configBody">
+                <!-- 臂数量 -->
+                <div class="config-row">
+                    <label for="numArms">臂数量：</label>
+                    <input type="number" id="numArms" min="2" max="10" value="3">
+                </div>
+
+                <!-- 概率滑块 -->
+                <div class="prob-sliders" id="probSliders"></div>
+
+                <!-- Epsilon -->
+                <div class="config-row">
+                    <label for="epsilonSlider">Epsilon (ε)：</label>
+                    <input type="range" id="epsilonSlider" min="0" max="1" step="0.01" value="0.1">
+                    <span class="slider-value" id="epsilonValue">0.10</span>
+                </div>
+
+                <!-- 速度 -->
+                <div class="config-row">
+                    <label>演示速度：</label>
+                    <div class="speed-group">
+                        <button class="speed-btn" data-speed="1000">慢</button>
+                        <button class="speed-btn active" data-speed="500">中</button>
+                        <button class="speed-btn" data-speed="200">快</button>
+                    </div>
+                </div>
+
+                <!-- 控制按钮 -->
+                <div class="control-group">
+                    <button class="ctrl-btn start" id="btnStart">▶ 开始</button>
+                    <button class="ctrl-btn pause" id="btnPause" disabled>⏸ 暂停</button>
+                    <button class="ctrl-btn step" id="btnStep">👣 单步</button>
+                    <button class="ctrl-btn reset" id="btnReset">🔄 重置</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 状态面板 -->
+        <div class="card">
+            <div class="stats-row">
+                <div class="stat-card">
+                    <div class="stat-icon">📊</div>
+                    <div class="stat-value monospace" id="statSteps">0</div>
+                    <div class="stat-label">当前步数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🔍</div>
+                    <div class="stat-value monospace" id="statExplore">0</div>
+                    <div class="stat-label">探索次数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🎯</div>
+                    <div class="stat-value monospace" id="statExploit">0</div>
+                    <div class="stat-label">利用次数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🏆</div>
+                    <div class="stat-value monospace" id="statReward">0</div>
+                    <div class="stat-label">累积奖励</div>
+                </div>
+                <div class="stat-card best-arm">
+                    <div class="stat-icon">👑</div>
+                    <div class="stat-value monospace" id="statBestArm">-</div>
+                    <div class="stat-label">当前最佳臂</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 臂卡片区域 -->
+        <div class="arms-container" id="armsContainer"></div>
+
+        <!-- 历史轨迹 -->
+        <div class="card history-section">
+            <h3>📜 历史选择轨迹</h3>
+            <div class="timeline-container">
+                <div class="timeline" id="timeline"></div>
+            </div>
+            <div class="timeline-legend">
+                <div class="legend-item"><span class="legend-dot orange"></span> 探索</div>
+                <div class="legend-item"><span class="legend-dot blue"></span> 利用</div>
+                <div class="legend-item"><span class="legend-dot green-ring"></span> 获得奖励</div>
+                <div class="legend-item"><span class="legend-dot gray-ring"></span> 未获得奖励</div>
+            </div>
+        </div>
+
+        <!-- 决策详情 -->
+        <div class="card">
+            <h3 style="font-size:16px;font-weight:600;margin-bottom:10px;">📝 当前选择详情</h3>
+            <div class="decision-detail" id="decisionDetail">
+                点击 [▶ 开始] 或 [👣 单步] 开始演示...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* ==================== 全局状态 ==================== */
+        let isPlaying = false;
+        let playInterval = null;
+        let speed = 500;
+        let currentTrueProbs = [0.8, 0.5, 0.3];
+        let currentEpsilon = 0.1;
+        let currentNumArms = 3;
+        let lastSelectedArm = -1;
+        let lastIsExplore = false;
+
+        /* ==================== 初始化 ==================== */
+        document.addEventListener('DOMContentLoaded', () => {
+            generateProbSliders();
+            initGame();
+            bindEvents();
+        });
+
+        /* ==================== 事件绑定 ==================== */
+        function bindEvents() {
+            // 配置面板折叠
+            document.getElementById('configHeader').addEventListener('click', toggleConfig);
+
+            // 臂数量变化
+            document.getElementById('numArms').addEventListener('change', onNumArmsChange);
+
+            // Epsilon 滑块
+            document.getElementById('epsilonSlider').addEventListener('input', onEpsilonChange);
+
+            // 速度按钮
+            document.querySelectorAll('.speed-btn').forEach(btn => {
+                btn.addEventListener('click', onSpeedChange);
+            });
+
+            // 控制按钮
+            document.getElementById('btnStart').addEventListener('click', startPlay);
+            document.getElementById('btnPause').addEventListener('click', pausePlay);
+            document.getElementById('btnStep').addEventListener('click', singleStep);
+            document.getElementById('btnReset').addEventListener('click', resetGame);
+        }
+
+        /* ==================== 配置面板交互 ==================== */
+        function toggleConfig() {
+            const body = document.getElementById('configBody');
+            const toggle = document.getElementById('configToggle');
+            body.classList.toggle('collapsed');
+            toggle.classList.toggle('collapsed');
+        }
+
+        function generateProbSliders() {
+            const container = document.getElementById('probSliders');
+            container.innerHTML = '';
+            for (let i = 0; i < currentNumArms; i++) {
+                const prob = currentTrueProbs[i] !== undefined ? currentTrueProbs[i] : 0.5;
+                const item = document.createElement('div');
+                item.className = 'prob-slider-item';
+                item.innerHTML = `
+                    <span class="arm-label">臂 #${i + 1}</span>
+                    <input type="range" min="0" max="1" step="0.01" value="${prob}"
+                           data-arm="${i}" class="prob-slider">
+                    <span class="slider-value">${prob.toFixed(2)}</span>
+                `;
+                container.appendChild(item);
+
+                // 绑定滑块事件
+                const slider = item.querySelector('input[type="range"]');
+                slider.addEventListener('input', onProbChange);
+            }
+        }
+
+        function onNumArmsChange() {
+            const input = document.getElementById('numArms');
+            let n = parseInt(input.value);
+            n = Math.max(2, Math.min(10, n));
+            input.value = n;
+            currentNumArms = n;
+
+            // 调整概率数组
+            while (currentTrueProbs.length < n) currentTrueProbs.push(0.5);
+            currentTrueProbs = currentTrueProbs.slice(0, n);
+
+            generateProbSliders();
+            initGame();
+        }
+
+        function onProbChange(e) {
+            const armIdx = parseInt(e.target.dataset.arm);
+            const val = parseFloat(e.target.value);
+            currentTrueProbs[armIdx] = val;
+            e.target.nextElementSibling.textContent = val.toFixed(2);
+            initGame();
+        }
+
+        function onEpsilonChange(e) {
+            currentEpsilon = parseFloat(e.target.value);
+            document.getElementById('epsilonValue').textContent = currentEpsilon.toFixed(2);
+            document.getElementById('epsilonDisplay').textContent = currentEpsilon.toFixed(2);
+        }
+
+        function onSpeedChange(e) {
+            document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+            e.target.classList.add('active');
+            speed = parseInt(e.target.dataset.speed);
+
+            // 更新进度条动画速度
+            const duration = speed <= 200 ? '0.3s' : speed <= 500 ? '0.6s' : '1s';
+            document.querySelectorAll('.prob-bar-fill').forEach(bar => {
+                bar.style.transitionDuration = duration;
+            });
+
+            // 如果正在播放，重新设置间隔
+            if (isPlaying) {
+                clearInterval(playInterval);
+                playInterval = setInterval(doStep, speed);
+            }
+        }
+
+        /* ==================== 游戏控制 ==================== */
+        async function initGame() {
+            pausePlay();
+            await fetch('/api/init', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    num_arms: currentNumArms,
+                    true_probs: currentTrueProbs,
+                    epsilon: currentEpsilon
+                })
+            });
+            await refreshUI();
+            clearTimeline();
+            document.getElementById('decisionDetail').textContent = '点击 [▶ 开始] 或 [👣 单步] 开始演示...';
+            document.getElementById('convergenceBanner').classList.remove('show');
+        }
+
+        function startPlay() {
+            if (isPlaying) return;
+            isPlaying = true;
+            document.getElementById('btnStart').disabled = true;
+            document.getElementById('btnPause').disabled = false;
+            playInterval = setInterval(doStep, speed);
+        }
+
+        function pausePlay() {
+            isPlaying = false;
+            document.getElementById('btnStart').disabled = false;
+            document.getElementById('btnPause').disabled = true;
+            if (playInterval) {
+                clearInterval(playInterval);
+                playInterval = null;
+            }
+        }
+
+        async function singleStep() {
+            pausePlay();
+            await doStep();
+        }
+
+        async function resetGame() {
+            pausePlay();
+            await fetch('/api/reset', { method: 'POST' });
+            await refreshUI();
+            clearTimeline();
+            document.getElementById('decisionDetail').textContent = '已重置。点击 [▶ 开始] 或 [👣 单步] 开始演示...';
+            document.getElementById('convergenceBanner').classList.remove('show');
+            lastSelectedArm = -1;
+        }
+
+        /* ==================== 核心步骤执行 ==================== */
+        async function doStep() {
+            try {
+                const res = await fetch('/api/step', { method: 'POST' });
+                const data = await res.json();
+                updateUI(data);
+                addTimelineDot(data);
+                updateDecisionDetail(data);
+
+                if (data.converged) {
+                    document.getElementById('convergenceBanner').classList.add('show');
+                    pausePlay();
+                }
+            } catch (e) {
+                console.error('步骤执行失败:', e);
+                pausePlay();
+            }
+        }
+
+        /* ==================== UI 更新 ==================== */
+        async function refreshUI() {
+            const res = await fetch('/api/status');
+            const state = await res.json();
+            renderArmCards(state);
+            updateStats(state);
+        }
+
+        function updateUI(data) {
+            renderArmCards(data);
+            updateStats(data);
+            highlightSelectedArm(data);
+        }
+
+        function renderArmCards(state) {
+            const container = document.getElementById('armsContainer');
+            const numArms = state.num_arms || state.q_values.length;
+            const trueProbs = state.true_probs;
+            const qValues = state.q_values;
+            const armCounts = state.arm_counts;
+            const bestArm = state.best_arm;
+
+            // 如果臂数量变了，重建卡片
+            if (container.children.length !== numArms) {
+                container.innerHTML = '';
+                for (let i = 0; i < numArms; i++) {
+                    const card = createArmCard(i, trueProbs[i], qValues[i], armCounts[i], bestArm === i);
+                    container.appendChild(card);
+                }
+            } else {
+                // 更新现有卡片
+                for (let i = 0; i < numArms; i++) {
+                    updateArmCard(container.children[i], i, trueProbs[i], qValues[i], armCounts[i], bestArm === i);
+                }
+            }
+        }
+
+        function createArmCard(idx, trueProb, qValue, count, isBest) {
+            const card = document.createElement('div');
+            card.className = 'arm-card' + (isBest ? ' is-best' : '');
+            card.id = `arm-card-${idx}`;
+
+            const qPct = Math.max(0, qValue * 100);
+            const tPct = trueProb * 100;
+
+            card.innerHTML = `
+                <div class="arm-header">
+                    <span class="arm-number">臂 #${idx + 1}</span>
+                    <span class="arm-crown">👑</span>
+                </div>
+                <div class="prob-bar-container">
+                    <div class="prob-label">估计: <span class="q-val">${qValue.toFixed(2)}</span> / 真实: ${trueProb.toFixed(2)}</div>
+                    <div class="prob-bar-track">
+                        <div class="prob-bar-fill" style="width: ${qPct}%"></div>
+                        <div class="prob-bar-marker" style="left: ${tPct}%">
+                            <span class="prob-bar-marker-label">${trueProb.toFixed(2)}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="arm-stats">
+                    <span class="arm-stat-tag">尝试: ${count}</span>
+                    <span class="arm-stat-tag">奖励: ${Math.round(qValue * count)}</span>
+                </div>
+            `;
+            return card;
+        }
+
+        function updateArmCard(card, idx, trueProb, qValue, count, isBest) {
+            // 更新最佳臂标记
+            card.classList.toggle('is-best', isBest);
+
+            // 更新概率条
+            const qPct = Math.max(0, qValue * 100);
+            const tPct = trueProb * 100;
+            const fill = card.querySelector('.prob-bar-fill');
+            const marker = card.querySelector('.prob-bar-marker');
+            const label = card.querySelector('.prob-label');
+            const stats = card.querySelectorAll('.arm-stat-tag');
+
+            fill.style.width = qPct + '%';
+            marker.style.left = tPct + '%';
+            label.innerHTML = `估计: <span class="q-val">${qValue.toFixed(2)}</span> / 真实: ${trueProb.toFixed(2)}`;
+            stats[0].textContent = `尝试: ${count}`;
+            stats[1].textContent = `奖励: ${Math.round(qValue * count)}`;
+        }
+
+        function highlightSelectedArm(data) {
+            const container = document.getElementById('armsContainer');
+            const cards = container.children;
+
+            // 清除之前的高亮
+            for (let i = 0; i < cards.length; i++) {
+                cards[i].classList.remove('selected-explore', 'selected-exploit', 'dimmed');
+            }
+
+            // 高亮选中的臂
+            const selectedCard = cards[data.arm];
+            if (selectedCard) {
+                selectedCard.classList.add(data.is_explore ? 'selected-explore' : 'selected-exploit');
+
+                // 奖励飘字
+                if (data.reward === 1) {
+                    const floatEl = document.createElement('div');
+                    floatEl.className = 'reward-float';
+                    floatEl.textContent = '+1 🎉';
+                    selectedCard.appendChild(floatEl);
+                    setTimeout(() => floatEl.remove(), 1000);
+
+                    selectedCard.classList.add('flash-reward');
+                    setTimeout(() => selectedCard.classList.remove('flash-reward'), 600);
+                }
+
+                // 其他臂半透明
+                for (let i = 0; i < cards.length; i++) {
+                    if (i !== data.arm) cards[i].classList.add('dimmed');
+                }
+
+                // 300ms 后恢复
+                setTimeout(() => {
+                    for (let i = 0; i < cards.length; i++) {
+                        cards[i].classList.remove('selected-explore', 'selected-exploit', 'dimmed');
+                    }
+                }, 400);
+            }
+
+            lastSelectedArm = data.arm;
+            lastIsExplore = data.is_explore;
+        }
+
+        function updateStats(state) {
+            animateStat('statSteps', state.total_steps);
+            animateStat('statExplore', state.explore_count);
+            animateStat('statExploit', state.exploit_count);
+            animateStat('statReward', state.total_reward);
+
+            const bestArmEl = document.getElementById('statBestArm');
+            if (state.total_steps > 0) {
+                bestArmEl.textContent = `#${state.best_arm + 1} (${state.best_q.toFixed(2)})`;
+            } else {
+                bestArmEl.textContent = '-';
+            }
+            bestArmEl.classList.add('pulse');
+            setTimeout(() => bestArmEl.classList.remove('pulse'), 300);
+        }
+
+        function animateStat(id, value) {
+            const el = document.getElementById(id);
+            const oldVal = el.textContent;
+            el.textContent = value;
+            if (oldVal !== String(value)) {
+                el.classList.add('pulse');
+                setTimeout(() => el.classList.remove('pulse'), 300);
+            }
+        }
+
+        /* ==================== 历史轨迹 ==================== */
+        function addTimelineDot(data) {
+            const timeline = document.getElementById('timeline');
+            const dot = document.createElement('div');
+            dot.className = `timeline-dot new ${data.is_explore ? 'explore' : 'exploit'} ${data.reward === 1 ? 'rewarded' : 'no-reward'}`;
+
+            const actionType = data.is_explore ? '探索' : '利用';
+            const rewardType = data.reward === 1 ? '获得奖励' : '未获得奖励';
+            dot.innerHTML = `<span class="tooltip">第 ${data.step} 步 | 选择臂 #${data.arm + 1} | ${actionType} | ${rewardType}</span>`;
+
+            timeline.appendChild(dot);
+
+            // 自动滚动到最新
+            const container = timeline.parentElement;
+            container.scrollLeft = container.scrollWidth;
+
+            // 移除 new 类（动画结束后）
+            setTimeout(() => dot.classList.remove('new'), 400);
+        }
+
+        function clearTimeline() {
+            document.getElementById('timeline').innerHTML = '';
+        }
+
+        /* ==================== 决策详情 ==================== */
+        function updateDecisionDetail(data) {
+            const el = document.getElementById('decisionDetail');
+            const actionClass = data.is_explore ? 'highlight-explore' : 'highlight-exploit';
+            const actionText = data.is_explore ? '探索' : '利用';
+            const rewardClass = data.reward === 1 ? 'highlight-reward' : 'highlight-no-reward';
+            const rewardText = data.reward === 1 ? '获得奖励！' : '未获得奖励';
+            const trueProb = currentTrueProbs[data.arm];
+
+            el.innerHTML = `第 ${data.step} 步：Agent 选择 <span class="${actionClass}">${actionText}</span> → 选择臂 #${data.arm + 1} → <span class="${rewardClass}">${rewardText}</span> (真实概率 ${trueProb.toFixed(2)}) → 臂 #${data.arm + 1} 估计概率从 ${data.q_before.toFixed(2)} 更新为 ${data.q_after.toFixed(2)}`;
+        }
+    </script>
+</body>
+</html>
