@@ -155,7 +155,9 @@ def api_step():
         'best_q': game_state['q_values'][best_arm],
         'q_before': q_before[chosen_arm],
         'q_after': game_state['q_values'][chosen_arm],
-        'converged': converged
+        'converged': converged,
+        'num_arms': game_state['num_arms'],
+        'true_probs': game_state['true_probs'][:]
     })
 
 
